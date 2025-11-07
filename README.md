@@ -22,7 +22,7 @@ This OpenStack Autoscaler Provider enables the Kubernetes Cluster Autoscaler to 
 ## Features
 
 - ✅ **External gRPC Protocol**: Complete implementation of the Kubernetes Cluster Autoscaler External gRPC Interface
-- ✅ **OpenStack Integration**: Native integration via gophercloud
+- ✅ **OpenStack Integration**: Native integration via gophercloud v2 (latest and most efficient)
 - ✅ **Multi-NodeGroup Support**: Support for multiple node groups with different configurations
 - ✅ **Cloud-Init Support**: Flexible server initialization via Cloud-Init/User Data
 - ✅ **TLS Support**: Secure gRPC communication with TLS

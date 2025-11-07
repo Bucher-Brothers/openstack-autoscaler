@@ -10,7 +10,7 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/flavors"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/v2/openstack/imageservice/v2/images"
+	"github.com/gophercloud/gophercloud/v2/openstack/image/v2/images"
 	"k8s.io/klog/v2"
 
 	"github.com/bucher-brothers/openstack-autoscaler/pkg/config"
@@ -60,7 +60,7 @@ func (p *OpenStackProvider) initializeClients() error {
 		DomainID:         p.config.Cloud.ProjectDomainName,
 	}
 
-	providerClient, err := openstack.AuthenticatedClient(authOptions)
+	providerClient, err := openstack.AuthenticatedClient(context.TODO(), authOptions)
 	if err != nil {
 		return fmt.Errorf("failed to create authenticated client: %w", err)
 	}
@@ -88,7 +88,7 @@ func (p *OpenStackProvider) initializeClients() error {
 	}
 
 	// Create image client
-	p.imageClient, err = openstack.NewImageServiceV2(providerClient, endpointOpts)
+	p.imageClient, err = openstack.NewImageV2(providerClient, endpointOpts)
 	if err != nil {
 		return fmt.Errorf("failed to create image client: %w", err)
 	}
@@ -145,7 +145,7 @@ func (p *OpenStackProvider) NodeGroupForNode(nodeProviderID string) (*OpenStackN
 	}
 
 	// Get server details
-	server, err := servers.Get(p.computeClient, serverID).Extract()
+	server, err := servers.Get(context.TODO(), p.computeClient, serverID).Extract()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get server %s: %w", serverID, err)
 	}
@@ -165,7 +165,7 @@ func (p *OpenStackProvider) ValidateConfiguration(ctx context.Context) error {
 	klog.V(2).Info("Validating OpenStack configuration")
 
 	// Test compute client by listing flavors
-	allPages, err := flavors.ListDetail(p.computeClient, flavors.ListOpts{}).AllPages()
+	allPages, err := flavors.ListDetail(p.computeClient, flavors.ListOpts{}).AllPages(context.TODO())
 	if err != nil {
 		return fmt.Errorf("failed to validate compute client: %w", err)
 	}
@@ -176,7 +176,7 @@ func (p *OpenStackProvider) ValidateConfiguration(ctx context.Context) error {
 	klog.V(2).Infof("Found %d flavors in OpenStack", len(flavorList))
 
 	// Test image client by listing images
-	allPages, err = images.List(p.imageClient, images.ListOpts{}).AllPages()
+	allPages, err = images.List(p.imageClient, images.ListOpts{}).AllPages(context.TODO())
 	if err != nil {
 		return fmt.Errorf("failed to validate image client: %w", err)
 	}

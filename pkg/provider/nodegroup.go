@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/flavors"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/openstack/imageservice/v2/images"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/flavors"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/v2/openstack/image/v2/images"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -320,7 +320,7 @@ func (ng *OpenStackNodeGroup) createServer() error {
 	}
 
 	klog.Infof("Creating server %s for node group %s", serverName, ng.Config.ID)
-	server, err := servers.Create(ng.Provider.computeClient, createOpts).Extract()
+	server, err := servers.Create(context.TODO(), ng.Provider.computeClient, createOpts, nil).Extract()
 	if err != nil {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
@@ -340,7 +340,7 @@ func (ng *OpenStackNodeGroup) deleteNode(node *apiv1.Node) error {
 
 	klog.Infof("Deleting server %s for node %s in node group %s", serverID, node.Name, ng.Config.ID)
 
-	err := servers.Delete(ng.Provider.computeClient, serverID).ExtractErr()
+	err := servers.Delete(context.TODO(), ng.Provider.computeClient, serverID).ExtractErr()
 	if err != nil {
 		return fmt.Errorf("failed to delete server %s: %w", serverID, err)
 	}
@@ -352,7 +352,7 @@ func (ng *OpenStackNodeGroup) deleteNode(node *apiv1.Node) error {
 // getInstances returns all instances belonging to this node group
 func (ng *OpenStackNodeGroup) getInstances() ([]servers.Server, error) {
 	// List all servers
-	allPages, err := servers.List(ng.Provider.computeClient, servers.ListOpts{}).AllPages()
+	allPages, err := servers.List(ng.Provider.computeClient, servers.ListOpts{}).AllPages(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list servers: %w", err)
 	}
@@ -375,10 +375,10 @@ func (ng *OpenStackNodeGroup) getInstances() ([]servers.Server, error) {
 
 // getFlavor returns the flavor for this node group
 func (ng *OpenStackNodeGroup) getFlavor() (*flavors.Flavor, error) {
-	flavor, err := flavors.Get(ng.Provider.computeClient, ng.Config.FlavorName).Extract()
+	flavor, err := flavors.Get(context.TODO(), ng.Provider.computeClient, ng.Config.FlavorName).Extract()
 	if err != nil {
 		// Try to find flavor by name
-		allPages, err := flavors.ListDetail(ng.Provider.computeClient, flavors.ListOpts{}).AllPages()
+		allPages, err := flavors.ListDetail(ng.Provider.computeClient, flavors.ListOpts{}).AllPages(context.TODO())
 		if err != nil {
 			return nil, fmt.Errorf("failed to list flavors: %w", err)
 		}
@@ -411,7 +411,7 @@ func (ng *OpenStackNodeGroup) getImageID() (string, error) {
 		Name: ng.Config.ImageName,
 	}
 
-	allPages, err := images.List(ng.Provider.imageClient, listOpts).AllPages()
+	allPages, err := images.List(ng.Provider.imageClient, listOpts).AllPages(context.TODO())
 	if err != nil {
 		return "", fmt.Errorf("failed to list images: %w", err)
 	}
