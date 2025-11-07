@@ -29,18 +29,103 @@ This OpenStack Autoscaler Provider enables the Kubernetes Cluster Autoscaler to 
 - ✅ **Multi-Architecture**: Support for AMD64 and ARM64
 - ✅ **Container Ready**: Docker images available
 
-## Quick Start
+## Quick Start with Helm
 
-### 1. Configuration
+### Prerequisites
 
-Create a configuration file based on the example:
+- Kubernetes 1.19+
+- Helm 3.8+
+- Access to an OpenStack environment
+- `kubectl` configured for your cluster
+
+### 1. Install OpenStack Autoscaler
 
 ```bash
-cp config.yaml.example config.yaml
-# Edit config.yaml with your OpenStack credentials and node group configurations
+# Clone the repository
+git clone https://github.com/bucher-brothers/openstack-autoscaler
+cd openstack-autoscaler
+
+# Install via Helm with your OpenStack credentials
+helm install openstack-autoscaler ./helm/openstack-autoscaler \
+  --namespace kube-system \
+  --create-namespace \
+  --set openstack.auth.authUrl="https://keystone.example.com:5000/v3" \
+  --set openstack.auth.username="your-username" \
+  --set openstack.auth.password="your-password" \
+  --set openstack.auth.projectName="your-project" \
+  --set openstack.auth.region="RegionOne"
 ```
 
-### 2. Build & Run
+### 2. Install Kubernetes Cluster Autoscaler
+
+```bash
+# Add the autoscaler Helm repository
+helm repo add autoscaler https://kubernetes.github.io/autoscaler
+helm repo update
+
+# Install cluster autoscaler configured for external-grpc
+helm install cluster-autoscaler autoscaler/cluster-autoscaler \
+  --namespace kube-system \
+  --set cloudProvider=external-grpc \
+  --set extraArgs.cloud-provider-grpc-address="openstack-autoscaler.kube-system.svc.cluster.local:50051" \
+  --set extraArgs.node-group-auto-discovery="openstack:name=worker-.*" \
+  --set extraArgs.max-nodes-total=100 \
+  --set extraArgs.scale-down-enabled=true \
+  --set rbac.create=true
+```
+
+### 3. Verify Installation
+
+```bash
+# Check if both services are running
+kubectl get pods -n kube-system -l app.kubernetes.io/name=openstack-autoscaler
+kubectl get pods -n kube-system -l app.kubernetes.io/name=cluster-autoscaler
+
+# Check logs
+kubectl logs -n kube-system deployment/openstack-autoscaler
+kubectl logs -n kube-system deployment/cluster-autoscaler
+```
+
+## 📖 Documentation & Configuration
+
+For comprehensive configuration, installation options, troubleshooting, and advanced features, see the **[Helm Chart Documentation](./helm/openstack-autoscaler/README.md)**.
+
+The Helm chart documentation includes:
+
+- 🔧 **Complete Installation Guide** - Step-by-step setup with both autoscalers
+- 🔐 **TLS Configuration** - Let's Encrypt integration with cert-manager
+- ⚙️ **Advanced Configuration** - Production values, security, HA setup
+- 🛠️ **Troubleshooting Guide** - Common issues and debugging steps
+- 📊 **Architecture Details** - gRPC protocol and OpenStack integration
+
+### Quick Configuration Examples
+
+**Basic Setup:**
+
+```bash
+helm install openstack-autoscaler ./helm/openstack-autoscaler \
+  --namespace kube-system \
+  --set openstack.auth.authUrl="https://keystone.example.com:5000/v3" \
+  --set openstack.auth.username="your-username" \
+  --set openstack.auth.password="your-password" \
+  --set openstack.auth.projectName="your-project" \
+  --set openstack.auth.region="RegionOne"
+```
+
+**Production with Existing Secret:**
+
+```bash
+helm install openstack-autoscaler ./helm/openstack-autoscaler \
+  --namespace kube-system \
+  --set openstack.existingSecret="openstack-production-credentials"
+```
+
+## Alternative Installation Methods
+
+<details>
+<summary>🔧 Development & Testing (Non-Helm)</summary>
+
+### Local Development
 
 ```bash
 # Install dependencies
@@ -49,299 +134,49 @@ make deps
 # Build binary
 make build
 
-# Start with configuration file
-make run
-
-# Or with environment variables
+# Run locally (requires OpenStack environment variables)
 export OS_AUTH_URL="https://keystone.example.com:5000/v3"
 export OS_USERNAME="your-username"
 export OS_PASSWORD="your-password"
 export OS_PROJECT_NAME="your-project"
 export OS_REGION_NAME="RegionOne"
-make run-env
+./openstack-autoscaler --v=4
 ```
 
-### 3. Docker
+### Docker Development
 
 ```bash
 # Build Docker image
 make docker-build-amd64
 
 # Run with Docker
-docker run -v $(pwd)/config.yaml:/config.yaml \
-  ghcr.io/bucher-brothers/openstack-autoscaler:latest \
-  --config=/config.yaml
+docker run -e OS_AUTH_URL="https://keystone.example.com:5000/v3" \
+  -e OS_USERNAME="your-username" \
+  -e OS_PASSWORD="your-password" \
+  -e OS_PROJECT_NAME="your-project" \
+  -e OS_REGION_NAME="RegionOne" \
+  ghcr.io/bucher-brothers/openstack-autoscaler:latest
 ```
 
-## Configuration
+</details>
 
-### OpenStack Cloud Configuration
-
-```yaml
-cloud:
-  auth_url: "https://keystone.example.com:5000/v3"
-  username: "your-username"
-  password: "your-password"
-  project_name: "your-project"
-  user_domain_name: "Default"
-  project_domain_name: "Default"
-  region: "RegionOne"
-  interface: "public"
-```
-
-### Node Groups Configuration
-
-**Important**: Node groups are **not** configured in this service's configuration file. Instead, they are dynamically managed by the Kubernetes Cluster Autoscaler through the external-grpc protocol.
-
-The Cluster Autoscaler will:
-
-1. Send node group definitions via gRPC calls
-2. Request scaling operations (increase/decrease nodes)
-3. Provide all necessary OpenStack configuration (flavor, image, network, etc.)
-
-This service only needs the **OpenStack cloud credentials** in its configuration.
-
-### Environment Variables
-
-Alternatively to the configuration file, OpenStack credentials can be set via environment variables:
-
-- `OS_AUTH_URL`: OpenStack Authentication URL
-- `OS_USERNAME`: OpenStack Username
-- `OS_PASSWORD`: OpenStack Password
-- `OS_PROJECT_NAME`: OpenStack Project Name
-- `OS_USER_DOMAIN_NAME`: User Domain (Default: "Default")
-- `OS_PROJECT_DOMAIN_NAME`: Project Domain (Default: "Default")
-- `OS_REGION_NAME`: OpenStack Region
-- `OS_INTERFACE`: Interface Type (public/internal/admin)
-
-## Kubernetes Cluster Autoscaler Integration
-
-### 1. Service Account und RBAC
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cluster-autoscaler
-  namespace: kube-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cluster-autoscaler
-rules:
-  - apiGroups: [""]
-    resources: ["events", "endpoints"]
-    verbs: ["create", "patch"]
-  - apiGroups: [""]
-    resources: ["pods/eviction"]
-    verbs: ["create"]
-  - apiGroups: [""]
-    resources: ["pods/status"]
-    verbs: ["update"]
-  - apiGroups: [""]
-    resources: ["endpoints"]
-    resourceNames: ["cluster-autoscaler"]
-    verbs: ["get", "update"]
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["watch", "list", "get", "update"]
-  - apiGroups: [""]
-    resources:
-      [
-        "pods",
-        "services",
-        "replicationcontrollers",
-        "persistentvolumeclaims",
-        "persistentvolumes",
-      ]
-    verbs: ["watch", "list", "get"]
-  - apiGroups: ["extensions"]
-    resources: ["replicasets", "daemonsets"]
-    verbs: ["watch", "list", "get"]
-  - apiGroups: ["policy"]
-    resources: ["poddisruptionbudgets"]
-    verbs: ["watch", "list"]
-  - apiGroups: ["apps"]
-    resources: ["statefulsets", "replicasets", "daemonsets"]
-    verbs: ["watch", "list", "get"]
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["storageclasses", "csinodes"]
-    verbs: ["watch", "list", "get"]
-  - apiGroups: ["batch", "extensions"]
-    resources: ["jobs"]
-    verbs: ["get", "list", "watch", "patch"]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: ["leases"]
-    verbs: ["create"]
-  - apiGroups: ["coordination.k8s.io"]
-    resourceNames: ["cluster-autoscaler"]
-    resources: ["leases"]
-    verbs: ["get", "update"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cluster-autoscaler
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-autoscaler
-subjects:
-  - kind: ServiceAccount
-    name: cluster-autoscaler
-    namespace: kube-system
-```
-
-### 2. OpenStack Autoscaler Deployment
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: openstack-autoscaler
-  namespace: kube-system
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: openstack-autoscaler
-  template:
-    metadata:
-      labels:
-        app: openstack-autoscaler
-    spec:
-      containers:
-        - name: openstack-autoscaler
-          image: ghcr.io/bucher-brothers/openstack-autoscaler:latest
-          ports:
-            - containerPort: 8086
-          env:
-            - name: OS_AUTH_URL
-              value: "https://keystone.example.com:5000/v3"
-            - name: OS_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: openstack-credentials
-                  key: username
-            - name: OS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: openstack-credentials
-                  key: password
-            - name: OS_PROJECT_NAME
-              value: "your-project"
-            - name: OS_REGION_NAME
-              value: "RegionOne"
-          volumeMounts:
-            - name: config
-              mountPath: /config.yaml
-              subPath: config.yaml
-          command:
-            - ./openstack-autoscaler
-          args:
-            - --config=/config.yaml
-            - --address=:8086
-      volumes:
-        - name: config
-          configMap:
-            name: openstack-autoscaler-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: openstack-autoscaler
-  namespace: kube-system
-spec:
-  ports:
-    - port: 8086
-      targetPort: 8086
-      name: grpc
-  selector:
-    app: openstack-autoscaler
-```
-
-### 3. Cluster Autoscaler Deployment
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cluster-autoscaler
-  namespace: kube-system
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: cluster-autoscaler
-  template:
-    metadata:
-      labels:
-        app: cluster-autoscaler
-    spec:
-      serviceAccountName: cluster-autoscaler
-      containers:
-        - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.27.0
-          name: cluster-autoscaler
-          resources:
-            limits:
-              cpu: 100m
-              memory: 300Mi
-            requests:
-              cpu: 100m
-              memory: 300Mi
-          command:
-            - ./cluster-autoscaler
-            - --v=4
-            - --stderrthreshold=info
-            - --cloud-provider=externalgrpc
-            - --cloud-config=/etc/kubernetes/cloud-config
-            - --nodes=1:10:worker-nodes
-            - --nodes=0:5:gpu-nodes
-            - --grpc-client-cert-file=/etc/ssl/grpc/client.crt
-            - --grpc-client-key-file=/etc/ssl/grpc/client.key
-            - --grpc-ca-cert-file=/etc/ssl/grpc/ca.crt
-            - --grpc-provider-address=openstack-autoscaler.kube-system.svc.cluster.local:8086
-          volumeMounts:
-            - name: ssl-certs
-              mountPath: /etc/ssl/grpc
-              readOnly: true
-            - name: cloud-config
-              mountPath: /etc/kubernetes/cloud-config
-              readOnly: true
-      volumes:
-        - name: ssl-certs
-          secret:
-            secretName: grpc-client-certs
-        - name: cloud-config
-          configMap:
-            name: cluster-autoscaler-status
-```
-
-## Development
-
-### Generate Protobuf Code
+## Development Commands
 
 ```bash
+# Generate Protobuf code
 make proto
-```
 
-### Run Tests
-
-```bash
+# Run tests
 make test
-```
 
-### Format Code
-
-```bash
 make fmt
-```
 
-### Linting
-
-```bash
+# Linting
 make lint
+
+# Helm development
+helm lint ./helm/openstack-autoscaler
+helm template ./helm/openstack-autoscaler --debug
 ```
 
 ## Project Structure
@@ -369,12 +204,66 @@ openstack-autoscaler/
 ├── Dockerfile.amd64              # Multi-arch container images
 ├── Dockerfile.arm64
 ├── Makefile                      # Build & development tasks
-├── config.yaml.example           # Example configuration
+├── helm/                         # Helm Chart for deployment
+│   └── openstack-autoscaler/     # Production-ready Helm chart
+├── config.yaml.example           # Example configuration (dev only)
 ├── go.mod                        # Go module definition
 └── README.md                     # Project documentation
 ```
 
-## Architektur
+## Troubleshooting
+
+### Common Issues
+
+**1. gRPC Connection Failed**
+
+```bash
+# Check if OpenStack Autoscaler is running
+kubectl get pods -n kube-system -l app.kubernetes.io/name=openstack-autoscaler
+
+# Test gRPC connectivity
+kubectl exec -n kube-system deployment/cluster-autoscaler -- \
+  nc -z openstack-autoscaler.kube-system.svc.cluster.local 50051
+```
+
+**2. OpenStack Authentication Issues**
+
+```bash
+# Check OpenStack credentials
+kubectl get secret -n kube-system openstack-autoscaler-openstack -o yaml
+
+# View autoscaler logs
+kubectl logs -n kube-system deployment/openstack-autoscaler -f
+```
+
+**3. Cluster Autoscaler Not Scaling**
+
+```bash
+# Check cluster autoscaler logs
+kubectl logs -n kube-system deployment/cluster-autoscaler -f
+
+# Verify node group discovery
+kubectl logs -n kube-system deployment/cluster-autoscaler | grep "node group"
+```
+
+### Helm Commands
+
+```bash
+# List releases
+helm list -n kube-system
+
+# Upgrade releases
+helm upgrade openstack-autoscaler ./helm/openstack-autoscaler -n kube-system
+
+# Uninstall
+helm uninstall openstack-autoscaler -n kube-system
+helm uninstall cluster-autoscaler -n kube-system
+
+# Debug rendering
+helm template ./helm/openstack-autoscaler --values your-values.yaml
+```
+
+## Architecture
 
 ```
 ┌─────────────────────────┐    gRPC     ┌──────────────────────────┐

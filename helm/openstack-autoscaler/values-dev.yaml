@@ -1,0 +1,40 @@
+# Example values for development environment
+nameOverride: "openstack-autoscaler-dev"
+
+image:
+  repository: ghcr.io/bucher-brothers/openstack-autoscaler
+  tag: "latest"
+  pullPolicy: Always
+
+openstack:
+  auth:
+    authUrl: "https://keystone.dev.example.com:5000/v3"
+    username: "dev-user"
+    password: "dev-password"
+    projectName: "dev-project"
+    region: "RegionOne"
+    userDomainName: "Default"
+    projectDomainName: "Default"
+    interface: "public"
+
+logging:
+  level: 4  # Debug level
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+livenessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 15
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+nodeSelector:
+  kubernetes.io/os: linux

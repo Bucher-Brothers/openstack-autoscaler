@@ -1,0 +1,124 @@
+# Example values for production environment
+image:
+  repository: ghcr.io/bucher-brothers/openstack-autoscaler
+  tag: "1.0.0"  # Use specific version in production
+  pullPolicy: IfNotPresent
+
+# Use existing secret for production credentials
+openstack:
+  existingSecret: "production-openstack-credentials"
+  secretKeys:
+    authUrl: "OS_AUTH_URL"
+    username: "OS_USERNAME"
+    password: "OS_PASSWORD"
+    projectName: "OS_PROJECT_NAME"
+    projectId: "OS_PROJECT_ID"
+    userDomainName: "OS_USER_DOMAIN_NAME"
+    projectDomainName: "OS_PROJECT_DOMAIN_NAME"
+    region: "OS_REGION_NAME"
+    interface: "OS_INTERFACE"
+
+# Enable TLS for production
+grpc:
+  tls:
+    enabled: true
+    cert: "/certs/tls.crt"
+    key: "/certs/tls.key"
+    ca: "/certs/ca.crt"
+
+# Production resource allocation
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+
+
+# Security configurations
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+
+podSecurityContext:
+  fsGroup: 65534
+  runAsGroup: 65534
+
+# Network security
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: TCP
+          port: 50051
+
+# High availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Node placement
+nodeSelector:
+  kubernetes.io/os: linux
+  node-role.kubernetes.io/control-plane: ""
+
+tolerations:
+  - key: "node-role.kubernetes.io/control-plane"
+    operator: "Equal"
+    effect: "NoSchedule"
+  - key: "node-role.kubernetes.io/master"
+    operator: "Equal" 
+    effect: "NoSchedule"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - openstack-autoscaler
+          topologyKey: kubernetes.io/hostname
+
+# TLS certificate volumes
+volumes:
+  - name: tls-certs
+    secret:
+      secretName: openstack-autoscaler-tls
+      defaultMode: 0400
+
+volumeMounts:
+  - name: tls-certs
+    mountPath: /certs
+    readOnly: true
+
+# Additional labels for production tracking
+commonLabels:
+  environment: "production"
+  team: "infrastructure"
+  component: "autoscaler"
+
+commonAnnotations:
+  contact: "infrastructure-team@example.com"
+  documentation: "https://wiki.example.com/k8s/autoscaler"
+
+# Logging configuration for production
+logging:
+  level: 2  # Info level
+  format: "json"
+
+# Priority class for production workload
+priorityClassName: "system-cluster-critical"

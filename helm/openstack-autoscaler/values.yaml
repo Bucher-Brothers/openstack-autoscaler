@@ -1,0 +1,224 @@
+# Default values for openstack-autoscaler.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Image configuration
+image:
+  repository: ghcr.io/bucher-brothers/openstack-autoscaler
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Service Account
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Pod annotations and labels
+podAnnotations: {}
+podLabels: {}
+
+# Security Context
+podSecurityContext:
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 50051
+  targetPort: grpc
+  annotations: {}
+
+# gRPC server configuration
+grpc:
+  address: ":50051"
+  tls:
+    enabled: false
+    # When enabled, provide certificate files
+    cert: ""
+    key: ""
+    ca: ""
+
+# OpenStack configuration
+openstack:
+  # OpenStack credentials - use either direct values or existingSecret
+  auth:
+    authUrl: ""
+    username: ""
+    password: ""
+    projectName: ""
+    projectId: ""
+    userDomainName: "Default"
+    projectDomainName: "Default"
+    region: ""
+    interface: "public"
+
+  # Use existing secret instead of creating one
+  existingSecret: ""
+  # Keys in the existing secret (if used)
+  secretKeys:
+    authUrl: "OS_AUTH_URL"
+    username: "OS_USERNAME"
+    password: "OS_PASSWORD"
+    projectName: "OS_PROJECT_NAME"
+    projectId: "OS_PROJECT_ID"
+    userDomainName: "OS_USER_DOMAIN_NAME"
+    projectDomainName: "OS_PROJECT_DOMAIN_NAME"
+    region: "OS_REGION_NAME"
+    interface: "OS_INTERFACE"
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Liveness and readiness probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+
+
+
+# Node selector, tolerations and affinity
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# Volume mounts for configuration and certificates
+volumes: []
+# - name: config
+#   configMap:
+#     name: openstack-autoscaler-config
+# - name: tls-certs
+#   secret:
+#     secretName: openstack-autoscaler-tls
+
+volumeMounts: []
+# - name: config
+#   mountPath: /config
+#   readOnly: true
+# - name: tls-certs
+#   mountPath: /certs
+#   readOnly: true
+
+# Extra environment variables
+extraEnvVars: []
+# - name: LOG_LEVEL
+#   value: "debug"
+
+# Extra environment variables from ConfigMaps or Secrets
+extraEnvVarsFromConfigMaps: []
+extraEnvVarsFromSecrets: []
+
+# Logging configuration
+logging:
+  level: 2  # klog verbosity level
+  format: "json"  # json or text
+
+# Certificate configuration (requires cert-manager)
+certificate:
+  enabled: false
+  # Name of the ClusterIssuer or Issuer to use
+  issuer: "letsencrypt-prod"
+  # Kind of issuer: ClusterIssuer or Issuer
+  issuerKind: "ClusterIssuer"
+  # Optional issuer group (for external issuers)
+  issuerGroup: ""
+  # DNS names for the certificate
+  dnsNames:
+    - "openstack-autoscaler.example.com"
+  # Certificate duration (default: 2160h = 90 days)
+  duration: ""
+  # Renew before expiry (default: 360h = 15 days)
+  renewBefore: ""
+  # Certificate subject
+  subject: {}
+    # organizationalUnits: []
+    # countries: []
+    # organizations: []
+    # localities: []
+    # provinces: []
+    # streetAddresses: []
+    # postalCodes: []
+  # Private key configuration
+  privateKey: {}
+    # algorithm: RSA
+    # encoding: PKCS1
+    # size: 2048
+  # Key usages
+  usages: []
+    # - server auth
+    # - client auth
+  # Keystores configuration
+  keystores: {}
+
+
+
+# Network Policies
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# RBAC configuration
+rbac:
+  create: true
+  # Additional rules for the service account
+  rules: []
+  # - apiGroups: [""]
+  #   resources: ["nodes"]
+  #   verbs: ["get", "list", "watch"]
+
+# Priority Class
+priorityClassName: ""
+
+# Topology Spread Constraints
+topologySpreadConstraints: []
+
+# Additional labels for all resources
+commonLabels: {}
+
+# Additional annotations for all resources
+commonAnnotations: {}

@@ -1,0 +1,47 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openstack-autoscaler.fullname" . }}
+  labels:
+    {{- include "openstack-autoscaler.labels" . | nindent 4 }}
+  {{- include "openstack-autoscaler.annotations" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openstack-autoscaler.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow gRPC traffic from cluster autoscaler
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 50051
+    {{- with .Values.networkPolicy.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS to OpenStack APIs
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5000  # Keystone
+        - protocol: TCP
+          port: 8774  # Nova
+        - protocol: TCP
+          port: 9292  # Glance
+        - protocol: TCP
+          port: 9696  # Neutron
+    {{- with .Values.networkPolicy.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

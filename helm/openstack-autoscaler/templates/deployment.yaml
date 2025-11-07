@@ -1,0 +1,184 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openstack-autoscaler.fullname" . }}
+  labels:
+    {{- include "openstack-autoscaler.labels" . | nindent 4 }}
+  {{- include "openstack-autoscaler.annotations" . | nindent 4 }}
+spec:
+  replicas: 1  # Single replica for external gRPC provider
+  strategy:
+    type: Recreate  # Avoid concurrent instances
+  selector:
+    matchLabels:
+      {{- include "openstack-autoscaler.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "openstack-autoscaler.annotations" . | nindent 8 }}
+      labels:
+        {{- include "openstack-autoscaler.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "openstack-autoscaler.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: openstack-autoscaler
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "openstack-autoscaler.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --address={{ .Values.grpc.address }}
+            - --v={{ .Values.logging.level }}
+            {{- if .Values.grpc.tls.enabled }}
+            - --cert={{ .Values.grpc.tls.cert }}
+            - --key-cert={{ .Values.grpc.tls.key }}
+            {{- if .Values.grpc.tls.ca }}
+            - --ca-cert={{ .Values.grpc.tls.ca }}
+            {{- end }}
+            {{- end }}
+          ports:
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+
+          env:
+            # OpenStack credentials from secret
+            - name: OS_AUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.authUrl }}
+            - name: OS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.username }}
+            - name: OS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.password }}
+            - name: OS_PROJECT_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.projectName }}
+            {{- if or .Values.openstack.auth.projectId .Values.openstack.existingSecret }}
+            - name: OS_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.projectId }}
+                  optional: true
+            {{- end }}
+            - name: OS_USER_DOMAIN_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.userDomainName }}
+            - name: OS_PROJECT_DOMAIN_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.projectDomainName }}
+            - name: OS_REGION_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.region }}
+            - name: OS_INTERFACE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.interface }}
+            # Additional environment variables
+            {{- with .Values.extraEnvVars }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvVarsFromConfigMaps }}
+          envFrom:
+            {{- range . }}
+            - configMapRef:
+                name: {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.extraEnvVarsFromSecrets }}
+          envFrom:
+            {{- range . }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "netstat -ln | grep :50051"
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "netstat -ln | grep :50051"
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

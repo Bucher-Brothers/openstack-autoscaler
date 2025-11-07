@@ -1,0 +1,41 @@
+1. Get the application URL by running these commands:
+{{- if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "openstack-autoscaler.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "openstack-autoscaler.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "openstack-autoscaler.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+{{- else if contains "ClusterIP" .Values.service.type }}
+  echo "gRPC service is available at: {{ include "openstack-autoscaler.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}"
+{{- end }}
+
+2. Configure the Kubernetes Cluster Autoscaler to use this external gRPC provider:
+
+   Add the following arguments to your cluster autoscaler deployment:
+
+   --cloud-provider=external-grpc
+   --cloud-provider-grpc-address={{ include "openstack-autoscaler.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+   --node-group-auto-discovery=openstack:name=.*
+
+3. Verify the deployment:
+
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "openstack-autoscaler.name" . }}
+   
+   Check logs:
+   kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "openstack-autoscaler.fullname" . }}
+
+4. Test the installation:
+
+   helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+5. OpenStack Configuration:
+   {{- if .Values.openstack.existingSecret }}
+   ✅ Using existing secret: {{ .Values.openstack.existingSecret }}
+   {{- else }}
+   ✅ OpenStack credentials configured via values
+   {{- end }}
+
+For more information, visit: https://github.com/bucher-brothers/openstack-autoscaler

@@ -1,0 +1,43 @@
+{{- if .Values.certificate.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "openstack-autoscaler.fullname" . }}-tls
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "openstack-autoscaler.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "openstack-autoscaler.fullname" . }}-tls
+  issuerRef:
+    name: {{ .Values.certificate.issuer }}
+    kind: {{ .Values.certificate.issuerKind | default "ClusterIssuer" }}
+    {{- if .Values.certificate.issuerGroup }}
+    group: {{ .Values.certificate.issuerGroup }}
+    {{- end }}
+  dnsNames:
+    {{- range .Values.certificate.dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- if .Values.certificate.duration }}
+  duration: {{ .Values.certificate.duration }}
+  {{- end }}
+  {{- if .Values.certificate.renewBefore }}
+  renewBefore: {{ .Values.certificate.renewBefore }}
+  {{- end }}
+  {{- if .Values.certificate.subject }}
+  subject:
+    {{- toYaml .Values.certificate.subject | nindent 4 }}
+  {{- end }}
+  {{- if .Values.certificate.privateKey }}
+  privateKey:
+    {{- toYaml .Values.certificate.privateKey | nindent 4 }}
+  {{- end }}
+  {{- if .Values.certificate.usages }}
+  usages:
+    {{- toYaml .Values.certificate.usages | nindent 4 }}
+  {{- end }}
+  {{- if .Values.certificate.keystores }}
+  keystores:
+    {{- toYaml .Values.certificate.keystores | nindent 4 }}
+  {{- end }}
+{{- end }}

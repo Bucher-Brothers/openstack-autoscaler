@@ -1,0 +1,23 @@
+apiVersion: v2
+name: openstack-autoscaler
+description: A Kubernetes Cluster Autoscaler Provider for OpenStack implementing External gRPC Protocol
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/bucher-brothers/openstack-autoscaler
+sources:
+  - https://github.com/bucher-brothers/openstack-autoscaler
+maintainers:
+  - name: Bucher Brothers
+    email: kontakt@bucher-brothers.com
+    url: https://bucher-brothers.com
+keywords:
+  - kubernetes
+  - cluster-autoscaler
+  - openstack
+  - grpc
+  - autoscaling
+annotations:
+  category: Infrastructure
+  artifacthub.io/operator: "false"
+  artifacthub.io/prerelease: "false"
