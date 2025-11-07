@@ -122,13 +122,6 @@ func loadCloudConfig() *config.CloudConfig {
 	return cloudCfg
 }
 
-func getValueOrEnv(value, envVar string) string {
-	if value != "" {
-		return value
-	}
-	return os.Getenv(envVar)
-}
-
 func createGRPCServer() *grpc.Server {
 	var serverOpts []grpc.ServerOption
 

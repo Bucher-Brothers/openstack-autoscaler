@@ -231,7 +231,16 @@ kubectl create secret generic my-openstack-credentials \
   --namespace kube-system
 ```
 
-## TLS Configuration with Let's Encrypt
+## TLS Configuration with Self-Signed CA
+
+### Overview
+
+For internal cluster communication, we use a self-managed Certificate Authority (CA) to issue TLS certificates for local service addresses. This approach provides:
+
+- **Full Control**: No dependency on external ACME providers
+- **Local Cluster Addresses**: Support for `.svc.cluster.local` and internal IPs
+- **Security**: TLS encryption for gRPC communication
+- **Simplicity**: No DNS validation or external connectivity required
 
 ### Prerequisites for TLS
 
@@ -246,25 +255,53 @@ helm install cert-manager jetstack/cert-manager \
   --set installCRDs=true
 ```
 
-### Option 1: Let's Encrypt with HTTP01 Challenge
+### Option 1: Self-Signed CA with cert-manager
 
-1. **Create ClusterIssuer**:
+1. **Create Self-Signed CA ClusterIssuer**:
 
 ```yaml
+# Create CA certificate and private key
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: letsencrypt-prod
+  name: selfsigned-issuer
 spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: your-email@example.com
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-      - http01:
-          ingress:
-            class: nginx
+  selfSigned: {}
+---
+# Create CA certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: openstack-autoscaler-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: "OpenStack Autoscaler CA"
+  secretName: openstack-autoscaler-ca-secret
+  duration: 8760h # 1 year
+  renewBefore: 720h # 30 days
+  subject:
+    organizationalUnits:
+      - "OpenStack Autoscaler"
+    organizations:
+      - "Kubernetes Cluster"
+    countries:
+      - "DE"
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+---
+# Create CA-based issuer
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: openstack-autoscaler-ca-issuer
+spec:
+  ca:
+    secretName: openstack-autoscaler-ca-secret
 ```
 
 2. **Enable TLS in Helm values**:
@@ -275,106 +312,142 @@ grpc:
     enabled: true
     cert: "/certs/tls.crt"
     key: "/certs/tls.key"
-
-# Certificate configuration
-certificate:
-  enabled: true
-  issuer: letsencrypt-prod
-  dnsNames:
-    - openstack-autoscaler.your-domain.com
-
-# Mount TLS certificates
-volumes:
-  - name: tls-certs
-    secret:
-      secretName: openstack-autoscaler-tls
-
-volumeMounts:
-  - name: tls-certs
-    mountPath: /certs
-    readOnly: true
-```
-
-### Option 2: Let's Encrypt with DNS01 Challenge
-
-1. **Create ClusterIssuer with DNS provider** (example with Cloudflare):
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-dns-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: your-email@example.com
-    privateKeySecretRef:
-      name: letsencrypt-dns-prod
-    solvers:
-      - dns01:
-          cloudflare:
-            email: your-email@example.com
-            apiTokenSecretRef:
-              name: cloudflare-api-token-secret
-              key: api-token
-```
-
-2. **Create Cloudflare API token secret**:
-
-```bash
-kubectl create secret generic cloudflare-api-token-secret \
-  --from-literal=api-token=your-cloudflare-api-token \
-  --namespace kube-system
-```
-
-3. **Configure Helm values for DNS01**:
-
-```yaml
-grpc:
-  tls:
-    enabled: true
-    cert: "/certs/tls.crt"
-    key: "/certs/tls.key"
-
-certificate:
-  enabled: true
-  issuer: letsencrypt-dns-prod
-  dnsNames:
-    - openstack-autoscaler.your-domain.com
-  dnsNames:
-    - "*.your-domain.com"  # wildcard support with DNS01
-
-volumes:
-  - name: tls-certs
-    secret:
-      secretName: openstack-autoscaler-tls
-
-volumeMounts:
-  - name: tls-certs
-    mountPath: /certs
-    readOnly: true
-```
-
-### Manual TLS Certificate
-
-For existing certificates:
-
-```yaml
-grpc:
-  tls:
-    enabled: true
-    cert: "/certs/tls.crt"
-    key: "/certs/tls.key"
     ca: "/certs/ca.crt"
 
+# Certificate configuration for service
+certificate:
+  enabled: true
+  issuer: openstack-autoscaler-ca-issuer
+  dnsNames:
+    - openstack-autoscaler.kube-system.svc.cluster.local
+    - openstack-autoscaler.kube-system.svc
+    - openstack-autoscaler
+  ipAddresses:
+    - "127.0.0.1"
+
+# Mount TLS certificates and CA
 volumes:
   - name: tls-certs
     secret:
-      secretName: your-existing-tls-secret
+      secretName: openstack-autoscaler-tls
+  - name: ca-certs
+    secret:
+      secretName: openstack-autoscaler-ca-secret
 
 volumeMounts:
   - name: tls-certs
     mountPath: /certs
+    readOnly: true
+  - name: ca-certs
+    mountPath: /ca-certs
+    readOnly: true
+```
+
+### Option 2: Manual Self-Signed Certificates
+
+For environments without cert-manager, create certificates manually:
+
+1. **Generate CA and Server Certificates**:
+
+```bash
+#!/bin/bash
+# Create CA private key
+openssl genrsa -out ca.key 2048
+
+# Create CA certificate
+openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj "/C=DE/O=Kubernetes Cluster/OU=OpenStack Autoscaler/CN=OpenStack Autoscaler CA"
+
+# Create server private key
+openssl genrsa -out tls.key 2048
+
+# Create certificate signing request
+openssl req -new -key tls.key -out server.csr -subj "/C=DE/O=Kubernetes Cluster/OU=OpenStack Autoscaler/CN=openstack-autoscaler.kube-system.svc.cluster.local"
+
+# Create certificate extensions for SAN
+cat > server.ext <<EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = openstack-autoscaler.kube-system.svc.cluster.local
+DNS.2 = openstack-autoscaler.kube-system.svc
+DNS.3 = openstack-autoscaler
+DNS.4 = localhost
+IP.1 = 127.0.0.1
+EOF
+
+# Sign server certificate with CA
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out tls.crt -days 365 -extensions v3_req -extfile server.ext
+
+# Create Kubernetes secrets
+kubectl create secret generic openstack-autoscaler-ca-secret \
+  --from-file=ca.crt=ca.crt \
+  --from-file=ca.key=ca.key \
+  --namespace cert-manager
+
+kubectl create secret tls openstack-autoscaler-tls \
+  --cert=tls.crt \
+  --key=tls.key \
+  --namespace kube-system
+
+# Cleanup
+rm server.csr server.ext ca.key
+```
+
+2. **Configure Helm values for manual certificates**:
+
+```yaml
+grpc:
+  tls:
+    enabled: true
+    cert: "/certs/tls.crt"
+    key: "/certs/tls.key"
+    ca: "/ca-certs/ca.crt"
+
+# Use existing secrets (created manually above)
+certificate:
+  enabled: false  # Don't create certificate via cert-manager
+
+# Mount existing certificates
+volumes:
+  - name: tls-certs
+    secret:
+      secretName: openstack-autoscaler-tls
+  - name: ca-certs
+    secret:
+      secretName: openstack-autoscaler-ca-secret
+
+volumeMounts:
+  - name: tls-certs
+    mountPath: /certs
+    readOnly: true
+  - name: ca-certs
+    mountPath: /ca-certs
+    readOnly: true
+```
+
+### Cluster Autoscaler TLS Configuration
+
+When using TLS, configure the Cluster Autoscaler to trust your CA:
+
+```yaml
+# cluster-autoscaler values
+extraArgs:
+  cloud-provider-grpc-address: "openstack-autoscaler.kube-system.svc.cluster.local:50051"
+  cloud-provider-grpc-insecure: "false"  # Enable TLS
+  cloud-provider-grpc-ca-cert: "/ca-certs/ca.crt"
+
+# Mount CA certificate in cluster autoscaler
+extraVolumes:
+  - name: ca-certs
+    secret:
+      secretName: openstack-autoscaler-ca-secret
+
+extraVolumeMounts:
+  - name: ca-certs
+    mountPath: /ca-certs
     readOnly: true
 ```
 
