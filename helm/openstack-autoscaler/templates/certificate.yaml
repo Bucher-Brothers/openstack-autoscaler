@@ -9,8 +9,8 @@ metadata:
 spec:
   secretName: {{ include "openstack-autoscaler.fullname" . }}-tls
   issuerRef:
-    name: {{ .Values.certificate.issuer }}
-    kind: {{ .Values.certificate.issuerKind | default "ClusterIssuer" }}
+    name: {{ include "openstack-autoscaler.fullname" . }}-ca-issuer
+    kind: ClusterIssuer
     {{- if .Values.certificate.issuerGroup }}
     group: {{ .Values.certificate.issuerGroup }}
     {{- end }}
@@ -18,11 +18,21 @@ spec:
     {{- range .Values.certificate.dnsNames }}
     - {{ . | quote }}
     {{- end }}
+  {{- if .Values.certificate.ipAddresses }}
+  ipAddresses:
+    {{- range .Values.certificate.ipAddresses }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- end }}
   {{- if .Values.certificate.duration }}
   duration: {{ .Values.certificate.duration }}
+  {{- else }}
+  duration: 8760h  # 1 year default
   {{- end }}
   {{- if .Values.certificate.renewBefore }}
   renewBefore: {{ .Values.certificate.renewBefore }}
+  {{- else }}
+  renewBefore: 720h  # 30 days default
   {{- end }}
   {{- if .Values.certificate.subject }}
   subject:

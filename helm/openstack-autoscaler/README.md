@@ -408,7 +408,7 @@ grpc:
 
 # Use existing secrets (created manually above)
 certificate:
-  enabled: false  # Don't create certificate via cert-manager
+  enabled: false # Don't create certificate via cert-manager
 
 # Mount existing certificates
 volumes:
@@ -436,7 +436,7 @@ When using TLS, configure the Cluster Autoscaler to trust your CA:
 # cluster-autoscaler values
 extraArgs:
   cloud-provider-grpc-address: "openstack-autoscaler.kube-system.svc.cluster.local:50051"
-  cloud-provider-grpc-insecure: "false"  # Enable TLS
+  cloud-provider-grpc-insecure: "false" # Enable TLS
   cloud-provider-grpc-ca-cert: "/ca-certs/ca.crt"
 
 # Mount CA certificate in cluster autoscaler

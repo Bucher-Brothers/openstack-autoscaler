@@ -197,12 +197,28 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if and .Values.grpc.tls.enabled .Values.certificate.enabled }}
+            - name: tls-certs
+              mountPath: /certs
+              readOnly: true
+            - name: ca-certs
+              mountPath: /ca-certs
+              readOnly: true
+            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if and .Values.grpc.tls.enabled .Values.certificate.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: {{ include "openstack-autoscaler.fullname" . }}-tls
+        - name: ca-certs
+          secret:
+            secretName: {{ include "openstack-autoscaler.fullname" . }}-ca-secret
+        {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

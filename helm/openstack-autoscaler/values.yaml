@@ -167,39 +167,47 @@ logging:
   format: "json"  # json or text
 
 # Certificate configuration (requires cert-manager)
+# TLS Certificate configuration (using self-signed CA)
 certificate:
   enabled: false
-  # Name of the ClusterIssuer or Issuer to use
-  issuer: "letsencrypt-prod"
+  # Name of the ClusterIssuer or Issuer to use (self-signed CA)
+  issuer: "openstack-autoscaler-ca-issuer"
   # Kind of issuer: ClusterIssuer or Issuer
   issuerKind: "ClusterIssuer"
   # Optional issuer group (for external issuers)
   issuerGroup: ""
-  # DNS names for the certificate
+  # DNS names for the certificate (cluster-local addresses)
   dnsNames:
-    - "openstack-autoscaler.example.com"
-  # Certificate duration (default: 2160h = 90 days)
-  duration: ""
-  # Renew before expiry (default: 360h = 15 days)
-  renewBefore: ""
+    - "openstack-autoscaler.kube-system.svc.cluster.local"
+    - "openstack-autoscaler.kube-system.svc"
+    - "openstack-autoscaler"
+    - "localhost"
+  # IP addresses for the certificate
+  ipAddresses:
+    - "127.0.0.1"
+  # Certificate duration (default: 8760h = 1 year)
+  duration: "8760h"
+  # Renew before expiry (default: 720h = 30 days)
+  renewBefore: "720h"
   # Certificate subject
-  subject: {}
-    # organizationalUnits: []
-    # countries: []
-    # organizations: []
-    # localities: []
-    # provinces: []
-    # streetAddresses: []
-    # postalCodes: []
+  subject:
+    organizationalUnits:
+      - "OpenStack Autoscaler"
+    organizations:
+      - "Kubernetes Cluster"
+    countries:
+      - "DE"
   # Private key configuration
-  privateKey: {}
-    # algorithm: RSA
-    # encoding: PKCS1
-    # size: 2048
-  # Key usages
-  usages: []
-    # - server auth
-    # - client auth
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  # Key usages for server certificate
+  usages:
+    - server auth
+    - client auth
+    - digital signature
+    - key encipherment
   # Keystores configuration
   keystores: {}
 
