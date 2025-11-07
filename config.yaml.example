@@ -1,0 +1,57 @@
+# OpenStack Autoscaler Configuration
+# This service acts as an external gRPC provider for the Kubernetes Cluster Autoscaler
+# Node groups are managed dynamically by the Cluster Autoscaler, not configured here
+
+# OpenStack Cloud Configuration
+cloud:
+  auth_url: "https://keystone.example.com:5000/v3"
+  username: "your-username"
+  password: "your-password"
+  project_name: "your-project"
+  project_id: ""  # Optional, can use project_name instead
+  user_domain_name: "Default"
+  project_domain_name: "Default"
+  region: "RegionOne"
+  interface: "public"  # public, internal, or admin
+  identity_api_version: "3"
+  compute_api_version: "2.1"
+  network_api_version: "2.0"
+
+# IMPORTANT: Node Groups are NOT configured here!
+# They are dynamically managed by the Kubernetes Cluster Autoscaler
+# via the external-grpc protocol. The Cluster Autoscaler will:
+# 1. Send node group definitions via gRPC calls
+# 2. Request scaling operations (increase/decrease nodes)  
+# 3. Provide all necessary OpenStack configuration (flavor, image, network, etc.)
+
+# Example of how node groups would be configured in the Cluster Autoscaler:
+# --node-group-auto-discovery=openstack:name=worker-nodes,min-size=1,max-size=10
+# The following shows how node groups would be managed by the Cluster Autoscaler:
+#
+# Example Cluster Autoscaler deployment configuration:
+#
+# args:
+#   - --cloud-provider=external-grpc
+#   - --cloud-provider-grpc-address=openstack-autoscaler:50051
+#   - --node-group-auto-discovery=openstack:name=worker-.*
+#   - --max-nodes-total=100
+#   - --cores-total=0:320
+#   - --memory-total=0:1280
+#   - --scale-down-enabled=true
+#   - --scale-down-delay-after-add=10m
+#   - --scale-down-unneeded-time=10m
+#
+# The external-grpc provider will receive node group information like:
+# {
+#   "id": "worker-nodes",
+#   "minSize": 1,
+#   "maxSize": 10,
+#   "flavorName": "m1.medium",
+#   "imageName": "ubuntu-20.04-k8s",
+#   "keyName": "my-keypair",
+#   "securityGroups": ["default", "kubernetes-nodes"],
+#   "networkId": "12345678-1234-1234-1234-123456789012",
+#   "userData": "#!/bin/bash\n# Cloud-init script...",
+#   "metadata": {"role": "worker"},
+#   "labels": {"node-role.kubernetes.io/worker": ""}
+# }
