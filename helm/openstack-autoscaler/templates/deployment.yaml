@@ -65,21 +65,30 @@ spec:
                 secretKeyRef:
                   name: {{ include "openstack-autoscaler.secretName" . }}
                   key: {{ .Values.openstack.secretKeys.authUrl }}
+            {{- if or .Values.openstack.auth.username .Values.openstack.existingSecret }}
             - name: OS_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: {{ include "openstack-autoscaler.secretName" . }}
                   key: {{ .Values.openstack.secretKeys.username }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.openstack.auth.password .Values.openstack.existingSecret }}
             - name: OS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "openstack-autoscaler.secretName" . }}
                   key: {{ .Values.openstack.secretKeys.password }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.openstack.auth.projectName .Values.openstack.existingSecret }}
             - name: OS_PROJECT_NAME
               valueFrom:
                 secretKeyRef:
                   name: {{ include "openstack-autoscaler.secretName" . }}
                   key: {{ .Values.openstack.secretKeys.projectName }}
+                  optional: true
+            {{- end }}
             {{- if or .Values.openstack.auth.projectId .Values.openstack.existingSecret }}
             - name: OS_PROJECT_ID
               valueFrom:
@@ -88,16 +97,22 @@ spec:
                   key: {{ .Values.openstack.secretKeys.projectId }}
                   optional: true
             {{- end }}
+            {{- if or .Values.openstack.auth.userDomainName .Values.openstack.existingSecret }}
             - name: OS_USER_DOMAIN_NAME
               valueFrom:
                 secretKeyRef:
                   name: {{ include "openstack-autoscaler.secretName" . }}
                   key: {{ .Values.openstack.secretKeys.userDomainName }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.openstack.auth.projectDomainName .Values.openstack.existingSecret }}
             - name: OS_PROJECT_DOMAIN_NAME
               valueFrom:
                 secretKeyRef:
                   name: {{ include "openstack-autoscaler.secretName" . }}
                   key: {{ .Values.openstack.secretKeys.projectDomainName }}
+                  optional: true
+            {{- end }}
             - name: OS_REGION_NAME
               valueFrom:
                 secretKeyRef:
@@ -108,6 +123,31 @@ spec:
                 secretKeyRef:
                   name: {{ include "openstack-autoscaler.secretName" . }}
                   key: {{ .Values.openstack.secretKeys.interface }}
+            # Application credentials (optional)
+            {{- if or .Values.openstack.auth.applicationCredentialId .Values.openstack.existingSecret }}
+            - name: OS_APPLICATION_CREDENTIAL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.applicationCredentialId }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.openstack.auth.applicationCredentialName .Values.openstack.existingSecret }}
+            - name: OS_APPLICATION_CREDENTIAL_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.applicationCredentialName }}
+                  optional: true
+            {{- end }}
+            {{- if or .Values.openstack.auth.applicationCredentialSecret .Values.openstack.existingSecret }}
+            - name: OS_APPLICATION_CREDENTIAL_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openstack-autoscaler.secretName" . }}
+                  key: {{ .Values.openstack.secretKeys.applicationCredentialSecret }}
+                  optional: true
+            {{- end }}
             # Additional environment variables
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}

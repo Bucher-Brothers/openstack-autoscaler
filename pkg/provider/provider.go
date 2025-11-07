@@ -49,15 +49,37 @@ func NewOpenStackProvider(cfg *config.Config) (*OpenStackProvider, error) {
 
 // initializeClients initializes the OpenStack service clients
 func (p *OpenStackProvider) initializeClients() error {
+	// Validate authentication configuration
+	if err := p.config.Cloud.ValidateAuth(); err != nil {
+		return fmt.Errorf("authentication validation failed: %w", err)
+	}
+
 	// Create provider client
 	authOptions := gophercloud.AuthOptions{
 		IdentityEndpoint: p.config.Cloud.AuthURL,
-		Username:         p.config.Cloud.Username,
-		Password:         p.config.Cloud.Password,
-		TenantName:       p.config.Cloud.ProjectName,
-		TenantID:         p.config.Cloud.ProjectID,
-		DomainName:       p.config.Cloud.UserDomainName,
-		DomainID:         p.config.Cloud.ProjectDomainName,
+	}
+
+	// Use application credentials if available, otherwise fall back to username/password
+	if p.config.Cloud.ApplicationCredentialID != "" && p.config.Cloud.ApplicationCredentialSecret != "" {
+		klog.V(2).Info("Using OpenStack application credentials for authentication")
+		authOptions.ApplicationCredentialID = p.config.Cloud.ApplicationCredentialID
+		authOptions.ApplicationCredentialSecret = p.config.Cloud.ApplicationCredentialSecret
+		// When using application credentials, we don't need username/password or domain info
+	} else if p.config.Cloud.ApplicationCredentialName != "" && p.config.Cloud.ApplicationCredentialSecret != "" {
+		klog.V(2).Info("Using OpenStack application credentials with name for authentication")
+		authOptions.ApplicationCredentialName = p.config.Cloud.ApplicationCredentialName
+		authOptions.ApplicationCredentialSecret = p.config.Cloud.ApplicationCredentialSecret
+		// For application credential name, we need username and user domain
+		authOptions.Username = p.config.Cloud.Username
+		authOptions.DomainName = p.config.Cloud.UserDomainName
+	} else {
+		klog.V(2).Info("Using OpenStack username/password authentication")
+		authOptions.Username = p.config.Cloud.Username
+		authOptions.Password = p.config.Cloud.Password
+		authOptions.TenantName = p.config.Cloud.ProjectName
+		authOptions.TenantID = p.config.Cloud.ProjectID
+		authOptions.DomainName = p.config.Cloud.UserDomainName
+		authOptions.DomainID = p.config.Cloud.ProjectDomainName
 	}
 
 	providerClient, err := openstack.AuthenticatedClient(context.TODO(), authOptions)

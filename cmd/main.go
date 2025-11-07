@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
-	"io/ioutil"
 	"net"
 	"os"
 
@@ -97,40 +96,27 @@ func loadConfiguration() (*config.Config, error) {
 }
 
 func loadCloudConfig() *config.CloudConfig {
-	// Try flags first, then environment variables
-	cloudCfg := &config.CloudConfig{
-		AuthURL:            getValueOrEnv(*authURL, "OS_AUTH_URL"),
-		Username:           getValueOrEnv(*username, "OS_USERNAME"),
-		Password:           getValueOrEnv(*password, "OS_PASSWORD"),
-		ProjectName:        getValueOrEnv(*projectName, "OS_PROJECT_NAME"),
-		ProjectID:          getValueOrEnv(*projectID, "OS_PROJECT_ID"),
-		Region:             getValueOrEnv(*region, "OS_REGION_NAME"),
-		UserDomainName:     getValueOrEnv("", "OS_USER_DOMAIN_NAME"),
-		ProjectDomainName:  getValueOrEnv("", "OS_PROJECT_DOMAIN_NAME"),
-		Interface:          getValueOrEnv("", "OS_INTERFACE"),
-		IdentityAPIVersion: getValueOrEnv("", "OS_IDENTITY_API_VERSION"),
-		ComputeAPIVersion:  getValueOrEnv("", "OS_COMPUTE_API_VERSION"),
-		NetworkAPIVersion:  getValueOrEnv("", "OS_NETWORK_API_VERSION"),
-	}
+	// Load from environment variables first
+	cloudCfg := config.LoadConfigFromEnv()
 
-	// Set defaults
-	if cloudCfg.UserDomainName == "" {
-		cloudCfg.UserDomainName = "Default"
+	// Override with command line flags if provided
+	if *authURL != "" {
+		cloudCfg.AuthURL = *authURL
 	}
-	if cloudCfg.ProjectDomainName == "" {
-		cloudCfg.ProjectDomainName = "Default"
+	if *username != "" {
+		cloudCfg.Username = *username
 	}
-	if cloudCfg.Interface == "" {
-		cloudCfg.Interface = "public"
+	if *password != "" {
+		cloudCfg.Password = *password
 	}
-	if cloudCfg.IdentityAPIVersion == "" {
-		cloudCfg.IdentityAPIVersion = "3"
+	if *projectName != "" {
+		cloudCfg.ProjectName = *projectName
 	}
-	if cloudCfg.ComputeAPIVersion == "" {
-		cloudCfg.ComputeAPIVersion = "2.1"
+	if *projectID != "" {
+		cloudCfg.ProjectID = *projectID
 	}
-	if cloudCfg.NetworkAPIVersion == "" {
-		cloudCfg.NetworkAPIVersion = "2.0"
+	if *region != "" {
+		cloudCfg.Region = *region
 	}
 
 	return cloudCfg
@@ -158,7 +144,7 @@ func createGRPCServer() *grpc.Server {
 
 		// Load CA certificate
 		certPool := x509.NewCertPool()
-		ca, err := ioutil.ReadFile(*cacert)
+		ca, err := os.ReadFile(*cacert)
 		if err != nil {
 			klog.Fatalf("Failed to read CA certificate: %v", err)
 		}

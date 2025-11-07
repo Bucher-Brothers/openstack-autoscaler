@@ -62,12 +62,18 @@ openstack:
   # OpenStack credentials - use either direct values or existingSecret
   auth:
     authUrl: ""
+    # Username/password authentication
     username: ""
     password: ""
     projectName: ""
     projectId: ""
     userDomainName: "Default"
     projectDomainName: "Default"
+    # Application credentials authentication (recommended)
+    applicationCredentialId: ""
+    applicationCredentialName: ""
+    applicationCredentialSecret: ""
+    # Common settings
     region: ""
     interface: "public"
 
@@ -82,6 +88,9 @@ openstack:
     projectId: "OS_PROJECT_ID"
     userDomainName: "OS_USER_DOMAIN_NAME"
     projectDomainName: "OS_PROJECT_DOMAIN_NAME"
+    applicationCredentialId: "OS_APPLICATION_CREDENTIAL_ID"
+    applicationCredentialName: "OS_APPLICATION_CREDENTIAL_NAME"
+    applicationCredentialSecret: "OS_APPLICATION_CREDENTIAL_SECRET"
     region: "OS_REGION_NAME"
     interface: "OS_INTERFACE"
 

@@ -288,9 +288,7 @@ func (ng *OpenStackNodeGroup) createServer() error {
 
 	// Prepare security groups
 	securityGroups := make([]string, len(ng.Config.SecurityGroups))
-	for i, sg := range ng.Config.SecurityGroups {
-		securityGroups[i] = sg
-	}
+	copy(securityGroups, ng.Config.SecurityGroups)
 
 	// Create server options
 	serverName := fmt.Sprintf("%s-%d", ng.Config.ID, time.Now().Unix())

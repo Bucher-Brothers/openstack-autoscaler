@@ -45,15 +45,24 @@ This OpenStack Autoscaler Provider enables the Kubernetes Cluster Autoscaler to 
 git clone https://github.com/bucher-brothers/openstack-autoscaler
 cd openstack-autoscaler
 
-# Install via Helm with your OpenStack credentials
+# Install via Helm with username/password authentication
 helm install openstack-autoscaler ./helm/openstack-autoscaler \
   --namespace kube-system \
   --create-namespace \
   --set openstack.auth.authUrl="https://keystone.example.com:5000/v3" \
+  --set openstack.auth.region="RegionOne" \
   --set openstack.auth.username="your-username" \
   --set openstack.auth.password="your-password" \
-  --set openstack.auth.projectName="your-project" \
-  --set openstack.auth.region="RegionOne"
+  --set openstack.auth.projectName="your-project"
+
+# OR install with OpenStack application credentials (recommended for production)
+helm install openstack-autoscaler ./helm/openstack-autoscaler \
+  --namespace kube-system \
+  --create-namespace \
+  --set openstack.auth.authUrl="https://keystone.example.com:5000/v3" \
+  --set openstack.auth.region="RegionOne" \
+  --set openstack.auth.applicationCredentialId="your-app-cred-id" \
+  --set openstack.auth.applicationCredentialSecret="your-app-cred-secret"
 ```
 
 ### 2. Install Kubernetes Cluster Autoscaler

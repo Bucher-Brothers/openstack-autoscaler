@@ -102,11 +102,11 @@ kubectl logs -n kube-system deployment/cluster-autoscaler -f
 
 ## Configuration
 
-### OpenStack Credentials
+### OpenStack Authentication
 
-You can configure OpenStack credentials in several ways:
+You can configure OpenStack authentication in several ways:
 
-#### Method 1: Direct Values
+#### Method 1: Username/Password Authentication
 
 ```yaml
 openstack:
@@ -118,10 +118,83 @@ openstack:
     region: "RegionOne"
     userDomainName: "Default"
     projectDomainName: "Default"
+```
+
+#### Method 2: Application Credentials (Recommended)
+
+Application credentials provide a more secure authentication method:
+
+```yaml
+openstack:
+  auth:
+    authUrl: "https://keystone.example.com:5000/v3"
+    # Use application credential ID (no username needed)
+    applicationCredentialId: "your-app-credential-id"
+    applicationCredentialSecret: "your-app-credential-secret"
+    region: "RegionOne"
+```
+
+Or with application credential name:
+
+```yaml
+openstack:
+  auth:
+    authUrl: "https://keystone.example.com:5000/v3"
+    # Use application credential name (requires username)
+    username: "your-username"
+    applicationCredentialName: "your-app-credential-name"
+    applicationCredentialSecret: "your-app-credential-secret"
+    region: "RegionOne"
+    userDomainName: "Default"
     interface: "public"
 ```
 
-#### Method 2: Existing Secret
+### Creating Application Credentials
+
+Application credentials are the recommended authentication method for production deployments. They provide enhanced security by:
+
+- **Scoped Access**: Limited to specific projects and roles
+- **No Password Expiration**: Unlike user passwords, application credentials don't expire automatically
+- **Audit Trail**: Better tracking of API usage
+- **Rotation**: Easier credential rotation without affecting user accounts
+
+#### Step 1: Create Application Credential via OpenStack CLI
+
+```bash
+# Create application credential with ID (recommended)
+openstack application credential create \
+  --description "OpenStack Autoscaler Service" \
+  --role member \
+  --expiration 2025-12-31T23:59:59 \
+  openstack-autoscaler
+
+# Output will show:
+# +------------------+------------------------------------------+
+# | Field            | Value                                    |
+# +------------------+------------------------------------------+
+# | description      | OpenStack Autoscaler Service            |
+# | expires_at       | 2025-12-31T23:59:59                     |
+# | id               | a1b2c3d4e5f6789012345678901234567890     |
+# | name             | openstack-autoscaler                     |
+# | project_id       | 1234567890abcdef1234567890abcdef         |
+# | roles            | member                                   |
+# | secret           | super-secret-application-credential-key  |
+# | unrestricted     | False                                    |
+# +------------------+------------------------------------------+
+```
+
+#### Step 2: Use the Credentials in Helm
+
+```yaml
+openstack:
+  auth:
+    authUrl: "https://keystone.example.com:5000/v3"
+    applicationCredentialId: "a1b2c3d4e5f6789012345678901234567890"
+    applicationCredentialSecret: "super-secret-application-credential-key"
+    region: "RegionOne"
+```
+
+#### Method 3: Existing Secret
 
 ```yaml
 openstack:
@@ -134,7 +207,7 @@ openstack:
     region: "OS_REGION_NAME"
 ```
 
-Create the secret manually:
+Create the secret manually with username/password:
 
 ```bash
 kubectl create secret generic my-openstack-credentials \
@@ -145,6 +218,15 @@ kubectl create secret generic my-openstack-credentials \
   --from-literal=OS_REGION_NAME="RegionOne" \
   --from-literal=OS_USER_DOMAIN_NAME="Default" \
   --from-literal=OS_PROJECT_DOMAIN_NAME="Default" \
+  --from-literal=OS_INTERFACE="public" \
+  --namespace kube-system
+
+# Or create secret with application credentials:
+kubectl create secret generic my-openstack-credentials \
+  --from-literal=OS_AUTH_URL="https://keystone.example.com:5000/v3" \
+  --from-literal=OS_APPLICATION_CREDENTIAL_ID="a1b2c3d4e5f6789012345678901234567890" \
+  --from-literal=OS_APPLICATION_CREDENTIAL_SECRET="super-secret-application-credential-key" \
+  --from-literal=OS_REGION_NAME="RegionOne" \
   --from-literal=OS_INTERFACE="public" \
   --namespace kube-system
 ```
